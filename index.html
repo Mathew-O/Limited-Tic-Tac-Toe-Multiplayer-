@@ -135,7 +135,7 @@
             
             try {
               await db.ref(`rooms/${code}`).set({
-                board: initialBoard,
+                boardData: JSON.stringify(initialBoard),
                 moveHistory: initialHistory,
                 currentPlayer: 'X',
                 winner: null,
@@ -198,8 +198,16 @@
               
               await db.ref(`rooms/${code}/opponent`).set(true);
               
+              // Parse board data
+              let initialBoard;
+              try {
+                initialBoard = roomData.boardData ? JSON.parse(roomData.boardData) : Array(9).fill(null);
+              } catch (e) {
+                initialBoard = Array(9).fill(null);
+              }
+              
               // Set initial state from room data
-              setBoard(roomData.board || Array(9).fill(null));
+              setBoard(initialBoard);
               setMoveHistory(roomData.moveHistory || { X: [], O: [] });
               setCurrentPlayer(roomData.currentPlayer || 'X');
               setWinner(roomData.winner || null);
@@ -229,20 +237,12 @@
               console.log("Firebase data received:", data);
               
               if (data) {
-                // Convert board back to array if Firebase turned it into an object
+                // Parse board from JSON string
                 let newBoard;
-                if (Array.isArray(data.board)) {
-                  newBoard = data.board;
-                } else if (data.board && typeof data.board === 'object') {
-                  // Firebase converted array to object, convert back
-                  newBoard = Array(9).fill(null);
-                  Object.keys(data.board).forEach(key => {
-                    const index = parseInt(key);
-                    if (!isNaN(index) && index >= 0 && index < 9) {
-                      newBoard[index] = data.board[key];
-                    }
-                  });
-                } else {
+                try {
+                  newBoard = data.boardData ? JSON.parse(data.boardData) : Array(9).fill(null);
+                } catch (e) {
+                  console.error("Failed to parse board data:", e);
                   newBoard = Array(9).fill(null);
                 }
                 
@@ -391,19 +391,13 @@
             const newGameOver = !!gameWinner;
             const nextPlayer = currentPlayer === 'X' ? 'O' : 'X';
 
-            // Ensure all 9 positions are explicitly set (prevents Firebase from converting to object)
-            const cleanBoard = Array(9).fill(null);
-            for (let i = 0; i < 9; i++) {
-              cleanBoard[i] = newBoard[i] || null;
-            }
-
-            console.log("Making move:", { cleanBoard, newHistory, nextPlayer });
+            console.log("Making move:", { newBoard, newHistory, nextPlayer });
 
             if (gameMode === 'playing' && firebaseReady) {
               try {
                 const db = firebase.database();
                 await db.ref(`rooms/${roomCode}`).update({
-                  board: cleanBoard,
+                  boardData: JSON.stringify(newBoard),
                   moveHistory: newHistory,
                   currentPlayer: nextPlayer,
                   winner: gameWinner,
@@ -415,7 +409,7 @@
                 setError("Failed to update game: " + err.message);
               }
             } else {
-              setBoard(cleanBoard);
+              setBoard(newBoard);
               setMoveHistory(newHistory);
               setWinner(gameWinner);
               setGameOver(newGameOver);
@@ -424,18 +418,24 @@
           };
 
           const resetGame = async () => {
+            const freshBoard = Array(9).fill(null);
+            const freshHistory = { X: [], O: [] };
+            
             if (gameMode === 'playing' && firebaseReady) {
               const db = firebase.database();
-              await db.ref(`rooms/${roomCode}`).update({
-                board: Array(9).fill(null),
-                moveHistory: { X: [], O: [] },
+              await db.ref(`rooms/${roomCode}`).set({
+                boardData: JSON.stringify(freshBoard),
+                moveHistory: freshHistory,
                 currentPlayer: 'X',
                 winner: null,
-                gameOver: false
+                gameOver: false,
+                host: true,
+                opponent: true,
+                createdAt: Date.now()
               });
             } else {
-              setBoard(Array(9).fill(null));
-              setMoveHistory({ X: [], O: [] });
+              setBoard(freshBoard);
+              setMoveHistory(freshHistory);
               setCurrentPlayer('X');
               setWinner(null);
               setGameOver(false);
