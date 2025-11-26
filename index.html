@@ -229,7 +229,23 @@
               console.log("Firebase data received:", data);
               
               if (data) {
-                const newBoard = data.board || Array(9).fill(null);
+                // Convert board back to array if Firebase turned it into an object
+                let newBoard;
+                if (Array.isArray(data.board)) {
+                  newBoard = data.board;
+                } else if (data.board && typeof data.board === 'object') {
+                  // Firebase converted array to object, convert back
+                  newBoard = Array(9).fill(null);
+                  Object.keys(data.board).forEach(key => {
+                    const index = parseInt(key);
+                    if (!isNaN(index) && index >= 0 && index < 9) {
+                      newBoard[index] = data.board[key];
+                    }
+                  });
+                } else {
+                  newBoard = Array(9).fill(null);
+                }
+                
                 const newHistory = data.moveHistory || { X: [], O: [] };
                 const newPlayer = data.currentPlayer || 'X';
                 const newWinner = data.winner || null;
@@ -375,13 +391,19 @@
             const newGameOver = !!gameWinner;
             const nextPlayer = currentPlayer === 'X' ? 'O' : 'X';
 
-            console.log("Making move:", { newBoard, newHistory, nextPlayer });
+            // Ensure all 9 positions are explicitly set (prevents Firebase from converting to object)
+            const cleanBoard = Array(9).fill(null);
+            for (let i = 0; i < 9; i++) {
+              cleanBoard[i] = newBoard[i] || null;
+            }
+
+            console.log("Making move:", { cleanBoard, newHistory, nextPlayer });
 
             if (gameMode === 'playing' && firebaseReady) {
               try {
                 const db = firebase.database();
                 await db.ref(`rooms/${roomCode}`).update({
-                  board: newBoard,
+                  board: cleanBoard,
                   moveHistory: newHistory,
                   currentPlayer: nextPlayer,
                   winner: gameWinner,
@@ -393,7 +415,7 @@
                 setError("Failed to update game: " + err.message);
               }
             } else {
-              setBoard(newBoard);
+              setBoard(cleanBoard);
               setMoveHistory(newHistory);
               setWinner(gameWinner);
               setGameOver(newGameOver);
