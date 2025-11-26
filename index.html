@@ -328,9 +328,17 @@
           };
 
           const handleClick = async (index) => {
-            if (!board || board[index] || gameOver) return;
+            console.log("Click detected", { index, board, gameOver, currentPlayer, playerRole });
             
-            if (gameMode === 'playing' && currentPlayer !== playerRole) return;
+            if (!board || board[index] || gameOver) {
+              console.log("Click blocked:", { hasBoard: !!board, cellFilled: !!board[index], gameOver });
+              return;
+            }
+            
+            if (gameMode === 'playing' && currentPlayer !== playerRole) {
+              console.log("Not your turn");
+              return;
+            }
 
             const newBoard = [...board];
             const newHistory = { ...moveHistory };
@@ -347,15 +355,23 @@
             const newGameOver = !!gameWinner;
             const nextPlayer = currentPlayer === 'X' ? 'O' : 'X';
 
+            console.log("Making move:", { newBoard, newHistory, nextPlayer });
+
             if (gameMode === 'playing' && firebaseReady) {
-              const db = firebase.database();
-              await db.ref(`rooms/${roomCode}`).update({
-                board: newBoard,
-                moveHistory: newHistory,
-                currentPlayer: nextPlayer,
-                winner: gameWinner,
-                gameOver: newGameOver
-              });
+              try {
+                const db = firebase.database();
+                await db.ref(`rooms/${roomCode}`).update({
+                  board: newBoard,
+                  moveHistory: newHistory,
+                  currentPlayer: nextPlayer,
+                  winner: gameWinner,
+                  gameOver: newGameOver
+                });
+                console.log("Firebase updated successfully");
+              } catch (err) {
+                console.error("Firebase update error:", err);
+                setError("Failed to update game: " + err.message);
+              }
             } else {
               setBoard(newBoard);
               setMoveHistory(newHistory);
@@ -643,36 +659,43 @@
                   </p>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  {board && board.map((cell, index) => {
-                    const age = getAge(index);
-                    const isMyTurn = gameMode === 'local' || currentPlayer === playerRole;
-                    
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => handleClick(index)}
-                        className={`
-                          h-24 border-4 border-black font-black text-4xl
-                          transition-all hover:translate-x-1 hover:translate-y-1
-                          hover:shadow-none active:translate-x-2 active:translate-y-2
-                          ${cell === 'X' ? 'bg-pink-400' : cell === 'O' ? 'bg-lime-400' : 'bg-white'}
-                          ${!cell && !gameOver && isMyTurn ? 'cursor-pointer shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'cursor-default'}
-                          ${!cell && !gameOver && !isMyTurn ? 'opacity-50' : ''}
-                        `}
-                        disabled={!!cell || gameOver || (gameMode === 'playing' && currentPlayer !== playerRole)}
-                      >
-                        <div className="relative">
-                          {cell}
-                          {age && (
-                            <span className="absolute -top-1 -right-1 text-xs bg-black text-white px-1.5 py-0.5 rounded-full">
-                              {age}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
+                {!board || board.length !== 9 ? (
+                  <div className="bg-orange-400 border-4 border-black p-6 mb-6">
+                    <p className="text-center font-bold">Loading game...</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    {board.map((cell, index) => {
+                      const age = getAge(index);
+                      const isMyTurn = gameMode === 'local' || currentPlayer === playerRole;
+                      
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => handleClick(index)}
+                          className={`
+                            h-24 border-4 border-black font-black text-4xl
+                            transition-all hover:translate-x-1 hover:translate-y-1
+                            hover:shadow-none active:translate-x-2 active:translate-y-2
+                            ${cell === 'X' ? 'bg-pink-400' : cell === 'O' ? 'bg-lime-400' : 'bg-white'}
+                            ${!cell && !gameOver && isMyTurn ? 'cursor-pointer shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'cursor-default'}
+                            ${!cell && !gameOver && !isMyTurn ? 'opacity-50' : ''}
+                          `}
+                          disabled={!!cell || gameOver || (gameMode === 'playing' && currentPlayer !== playerRole)}
+                        >
+                          <div className="relative">
+                            {cell}
+                            {age && (
+                              <span className="absolute -top-1 -right-1 text-xs bg-black text-white px-1.5 py-0.5 rounded-full">
+                                {age}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 </div>
 
                 <div className="flex gap-3">
