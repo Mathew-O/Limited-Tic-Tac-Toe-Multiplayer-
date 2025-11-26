@@ -130,10 +130,13 @@
             
             console.log("Creating room with code:", code);
             
+            const initialBoard = Array(9).fill(null);
+            const initialHistory = { X: [], O: [] };
+            
             try {
               await db.ref(`rooms/${code}`).set({
-                board: Array(9).fill(null),
-                moveHistory: { X: [], O: [] },
+                board: initialBoard,
+                moveHistory: initialHistory,
                 currentPlayer: 'X',
                 winner: null,
                 gameOver: false,
@@ -143,6 +146,13 @@
               });
               
               console.log("Room created successfully");
+              
+              // Set initial state immediately
+              setBoard(initialBoard);
+              setMoveHistory(initialHistory);
+              setCurrentPlayer('X');
+              setWinner(null);
+              setGameOver(false);
               
               setRoomCode(code);
               setPlayerRole('X');
@@ -216,12 +226,22 @@
             roomRef.on('value', (snapshot) => {
               const data = snapshot.val();
               
+              console.log("Firebase data received:", data);
+              
               if (data) {
-                setBoard(data.board || Array(9).fill(null));
-                setMoveHistory(data.moveHistory || { X: [], O: [] });
-                setCurrentPlayer(data.currentPlayer || 'X');
-                setWinner(data.winner || null);
-                setGameOver(data.gameOver || false);
+                const newBoard = data.board || Array(9).fill(null);
+                const newHistory = data.moveHistory || { X: [], O: [] };
+                const newPlayer = data.currentPlayer || 'X';
+                const newWinner = data.winner || null;
+                const newGameOver = data.gameOver || false;
+                
+                console.log("Setting state:", { newBoard, newHistory, newPlayer });
+                
+                setBoard(newBoard);
+                setMoveHistory(newHistory);
+                setCurrentPlayer(newPlayer);
+                setWinner(newWinner);
+                setGameOver(newGameOver);
                 
                 // Check if opponent joined
                 if (data.opponent) {
@@ -659,9 +679,16 @@
                   </p>
                 </div>
 
-                {!board || board.length !== 9 ? (
+                {error && (
+                  <div className="bg-red-400 border-4 border-black p-3 mb-4">
+                    <p className="font-bold text-sm">{error}</p>
+                  </div>
+                )}
+
+                {(!board || !Array.isArray(board) || board.length !== 9) ? (
                   <div className="bg-orange-400 border-4 border-black p-6 mb-6">
                     <p className="text-center font-bold">Loading game...</p>
+                    <p className="text-xs text-center mt-2">Board state: {JSON.stringify(board)}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-3 mb-6">
