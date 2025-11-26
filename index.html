@@ -97,6 +97,7 @@
           const [searching, setSearching] = useState(false);
           const [firebaseReady, setFirebaseReady] = useState(true);
           const [error, setError] = useState('');
+          const [loading, setLoading] = useState(false);
 
           const winningCombos = [
             [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -160,6 +161,7 @@
               return;
             }
             
+            setLoading(true);
             const db = firebase.database();
             const code = inputCode.toUpperCase();
             
@@ -172,6 +174,7 @@
               
               if (!snapshot.exists()) {
                 setError("Room not found. Make sure the code is correct.");
+                setLoading(false);
                 return;
               }
               
@@ -179,19 +182,29 @@
               
               if (roomData.opponent) {
                 setError("Room is full. Only 2 players allowed.");
+                setLoading(false);
                 return;
               }
               
               await db.ref(`rooms/${code}/opponent`).set(true);
+              
+              // Set initial state from room data
+              setBoard(roomData.board || Array(9).fill(null));
+              setMoveHistory(roomData.moveHistory || { X: [], O: [] });
+              setCurrentPlayer(roomData.currentPlayer || 'X');
+              setWinner(roomData.winner || null);
+              setGameOver(roomData.gameOver || false);
               
               setRoomCode(code);
               setPlayerRole('O');
               setOpponentConnected(true);
               setGameMode('playing');
               setError('');
+              setLoading(false);
               listenToRoom(code);
             } catch (err) {
               setError("Failed to join room: " + err.message);
+              setLoading(false);
               console.error("Join room error:", err);
             }
           };
@@ -308,7 +321,7 @@
           };
 
           const handleClick = async (index) => {
-            if (board[index] || gameOver) return;
+            if (!board || board[index] || gameOver) return;
             
             if (gameMode === 'playing' && currentPlayer !== playerRole) return;
 
@@ -316,7 +329,7 @@
             const newHistory = { ...moveHistory };
 
             newBoard[index] = currentPlayer;
-            newHistory[currentPlayer] = [...newHistory[currentPlayer], index];
+            newHistory[currentPlayer] = [...(newHistory[currentPlayer] || []), index];
 
             if (newHistory[currentPlayer].length > 3) {
               const oldestMove = newHistory[currentPlayer].shift();
@@ -383,8 +396,10 @@
           };
 
           const getAge = (index) => {
+            if (!board || !board[index]) return null;
+            
             const player = board[index];
-            if (!player) return null;
+            if (!moveHistory || !moveHistory[player]) return null;
             
             const position = moveHistory[player].indexOf(index);
             return moveHistory[player].length - position;
@@ -496,11 +511,13 @@
 
                   <button
                     onClick={joinRoom}
+                    disabled={loading}
                     className="w-full bg-lime-400 border-4 border-black p-4 font-bold text-xl uppercase mb-4
                                shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1
-                               hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                               hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all
+                               disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Join
+                    {loading ? 'Joining...' : 'Join'}
                   </button>
 
                   <button
