@@ -223,9 +223,16 @@
                 setWinner(data.winner || null);
                 setGameOver(data.gameOver || false);
                 
-                if (data.opponent && gameMode === 'create') {
+                // Check if opponent joined
+                if (data.opponent) {
                   setOpponentConnected(true);
-                  setGameMode('playing');
+                  // Automatically switch to playing mode when opponent joins
+                  setGameMode((prevMode) => {
+                    if (prevMode === 'create') {
+                      return 'playing';
+                    }
+                    return prevMode;
+                  });
                 }
               }
             });
